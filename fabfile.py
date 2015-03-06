@@ -2,13 +2,44 @@
 import os
 from fabric.api import env, local, lcd, sudo, warn_only, prompt
 
+
+#####################################################################
+## Source Locations and Branches
+#####################################################################
+
+GIT_DEPTH = " --depth=2 " # by default we only want latest 
+
+PLIB_GIT = "git://gitorious.org/libplib/libplib.git"
+PLIB_STABLE_GIT_BRANCH="master"
+
+CGAL_PACKAGE="https://gforge.inria.fr/frs/download.php/32183/CGAL-4.2-beta1.tar.gz"
+
+OSG_GIT = "http://github.com/openscenegraph/osg.git"
+OSG_STABLE_GIT_BRANCH = "master"
+
+SIMGEAR_GIT = "git://gitorious.org/fg/simgear.git"
+SIMGEAR_DIR = "simgear" 
+
+FG_GIT = "git://gitorious.org/fg/flightgear.git"
+FG_DIR = "flightgear"
+
+FGSG_STABLE_GIT_BRANCH = "master"
+FGSG_UNSTABLE_GIT_BRANCH = "next"
+
+
+#===========================================
+class MODE:
+    """Build mode"""
+    system = "system"
+    stable = "stable"
+    unstable = "unstable"
+    
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = "%s/sources" % HERE
 BUILD_DIR = "%s/build" % HERE
 INSTALL_DIR = "%s/install" % HERE
 
-FGSG_STABLE_GIT_BRANCH = "master"
-FGSG_UNSTABLE_GIT_BRANCH = "next"
 
 LONG_WARNING = """
 **************************************
@@ -30,11 +61,10 @@ DEBIAN_PACKAGES_STABLE="freeglut3-dev libjpeg8-dev libjpeg8 libfltk1.1-dev libfl
 DEBIAN_PACKAGES_TESTING="freeglut3-dev libjpeg8-dev libjpeg8 libfltk1.3-dev libfltk1.3"
 DEBIAN_PACKAGES_UNSTABLE="freeglut3-dev libjpeg8-dev libjpeg8 libfltk1.3-dev libfltk1.3"
 
-
-
-local("mkdir -p %s" % SRC_DIR)
-local("mkdir -p %s" % BUILD_DIR)
-local("mkdir -p %s" % INSTALL_DIR)
+# check directories exist and create as necessary
+for d in [SRC_DIR, BUILD_DIR, INSTALL_DIR]:
+    if not os.path.exists(d):
+        local("mkdir -p %s" % d)
 
 #==================================================================
 ## apt-get 
@@ -54,21 +84,24 @@ def apt_upgrade():
 ## PLIB
 #==================================================================
 
-PLIB_STABLE_GIT_BRANCH="master"
-PLIB_GIT = "git://gitorious.org/libplib/libplib.git"
+
 PLIB_DIR = "libplib"
 PLIB_SRC_DIR = SRC_DIR + "/" + PLIB_DIR
 PLIB_BUILD_DIR = BUILD_DIR + "/" + PLIB_DIR
 PLIB_INSTALL_DIR = INSTALL_DIR + "/" + PLIB_DIR
 
-def plib():
-    """install plib"""
+def i_plib(mode):
+    """plib compile"""
+    print "==================================="
+    print "Building Plib: %s" % mode
+    print "==================================="
+    
     local("mkdir -p " + PLIB_BUILD_DIR)
     local("mkdir -p " + PLIB_INSTALL_DIR)
 
     with lcd(SRC_DIR):
         if not os.path.exists(PLIB_SRC_DIR):
-            local("git clone " + PLIB_GIT)
+            local("git clone  %s %s " % (GIT_DEPTH,  PLIB_GIT) )
         
     with lcd(PLIB_SRC_DIR):    
         local("git checkout %s" % PLIB_STABLE_GIT_BRANCH )
@@ -76,23 +109,26 @@ def plib():
         
         
     with lcd(PLIB_BUILD_DIR):
+        if mode == MODE.system:
+            local('cmake %s' % (PLIB_SRC_DIR))
+        else:
+            local('cmake -DCMAKE_INSTALL_PREFIX="%s" %s' % (PLIB_INSTALL_DIR, PLIB_SRC_DIR))
         
-        local('cmake -DCMAKE_INSTALL_PREFIX="%s" %s' % (PLIB_INSTALL_DIR, PLIB_SRC_DIR))
         local("make")
-        local("make install")
+        if mode == MODE.system:
+            local("sudo make install")
 
 #==================================================================
 ## CGAL
 #==================================================================
-     
-CGAL_PACKAGE="https://gforge.inria.fr/frs/download.php/32183/CGAL-4.2-beta1.tar.gz"
+
 CGAL_DIR = "cgal"
 CGAL_SRC_DIR = SRC_DIR + "/" + CGAL_DIR
 CGAL_BUILD_DIR = BUILD_DIR + "/" + CGAL_DIR
 CGAL_INSTALL_DIR = INSTALL_DIR + "/" + CGAL_DIR
 
-def cgal():
-    """download cgal tarball and install"""
+def i_cgal():
+    """cgal download install"""
     
     local("mkdir -p %s" % CGAL_BUILD_DIR)
     local("mkdir -p %s" % CGAL_INSTALL_DIR)
@@ -116,21 +152,19 @@ def cgal():
 ## OpenSceneGraph
 #==================================================================
 
-OSG_STABLE_GIT_BRANCH = "master"
-OSG_GIT = "http://github.com/openscenegraph/osg.git"
 OSG_DIR = "osg"
 OSG_SRC_DIR = SRC_DIR + "/" + OSG_DIR
 OSG_BUILD_DIR = BUILD_DIR + "/" + OSG_DIR
 OSG_INSTALL_DIR = INSTALL_DIR + "/" + OSG_DIR
 
-def osg():
-    """install osg"""
+def i_osg():
+    """osg compile"""
     local("mkdir -p %s" % OSG_BUILD_DIR)
     local("mkdir -p %s" % OSG_INSTALL_DIR)
     
     with lcd(SRC_DIR):
         if not os.path.exists(OSG_SRC_DIR):
-            local("git clone " + OSG_GIT)
+            local("git clone  %s %s " % (GIT_DEPTH, OSG_GIT))
         
     with lcd(OSG_SRC_DIR):    
         local("git checkout %s" % OSG_STABLE_GIT_BRANCH )
@@ -147,19 +181,17 @@ def osg():
 ## SimGear
 #==================================================================
 
-SIMGEAR_GIT = "git://gitorious.org/fg/simgear.git"
-SIMGEAR_DIR = "simgear" 
 SIMGEAR_SRC_DIR = SRC_DIR + "/" + SIMGEAR_DIR
 SIMGEAR_BUILD_DIR = BUILD_DIR + "/" + SIMGEAR_DIR
 SIMGEAR_INSTALL_DIR = INSTALL_DIR + "/" + SIMGEAR_DIR
 
-def simgear():
-    """install simgear"""
+def i_simgear():
+    """simgear compile"""
     local("mkdir -p %s" % SIMGEAR_BUILD_DIR)
     local("mkdir -p %s" % SIMGEAR_INSTALL_DIR)
     with lcd(SRC_DIR):
         if not os.path.exists(SIMGEAR_SRC_DIR):
-            local("git clone " + SIMGEAR_GIT)
+            local("git clone  %s %s " % (GIT_DEPTH, SIMGEAR_GIT) )
         
     with lcd(SIMGEAR_SRC_DIR):    
         local("git checkout %s" % FGSG_STABLE_GIT_BRANCH )
@@ -175,22 +207,20 @@ def simgear():
 ## FlightGear
 #==================================================================
 
-FG_GIT = "git://gitorious.org/fg/flightgear.git"
-FG_DIR = "flightgear"
 FG_SRC_DIR = SRC_DIR + "/" + FG_DIR
 FG_BUILD_DIR = BUILD_DIR + "/" + FG_DIR
 FG_INSTALL_DIR = INSTALL_DIR + "/" + FG_DIR
 
         
-def flightgear():
-    """install flightgear"""
+def i_flightgear():
+    """flightgear compile"""
     local("mkdir -p %s" % FG_BUILD_DIR)
     local("mkdir -p %s" % FG_INSTALL_DIR)
     
     with lcd(SRC_DIR):
         
         if not os.path.exists(FG_SRC_DIR):
-            local("git clone " + FG_GIT)
+            local("git clone %s %s " % (GIT_DEPTH, FG_GIT) )
         
     with lcd(FG_SRC_DIR):    
         local("git checkout %s" % FGSG_STABLE_GIT_BRANCH )
@@ -202,5 +232,30 @@ def flightgear():
         local("make")    
         
 
+def install_system():
+    """Install `stable` to system using sudo"""
+    pass
 
-   
+def install_stable():
+    """Install `stable` to local install dir"""
+    pass
+
+def install_unstable():
+    """Install `ustable` to local install dir"""
+    pass
+
+def install():
+    """Install from a menu selection"""
+    print LONG_WARNING
+    print "Please select build type:"
+    print "1 - System wide `stable sudo` install"
+    print "2 - Local `stable` install"
+    print "3 - Local `unstable` install"
+    no = prompt("Select [1-3]?", validate=int)
+    if no not in [1, 2, 3]:
+        print "ERROR: invalid selection, bye!"
+        return
+    modes = [MODE.system, MODE.stable, MODE.unstable]
+    mode = modes[no-1]
+    i_plib(mode)
+
