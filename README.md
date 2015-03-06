@@ -43,7 +43,7 @@ Please select build type:
 Select [1-3]? 
 ```
 
-There are three options, with only the stanle kinda working
+There are three options, with only the stable kinda working
 
 
 
